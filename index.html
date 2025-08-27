@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Show do Plantão</title>
+    <!-- Adicionado para PWA: Cor do tema da barra de status no Android -->
+    <meta name="theme-color" content="#1a202c">
+    <!-- Links para os ícones PWA, substituídos dinamicamente pelo script abaixo -->
+    <link rel="apple-touch-icon" href="https://i.imgur.com/8QG3y4a.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="https://i.imgur.com/8QG3y4a.png">
+
+    <!-- O link do manifesto será injetado dinamicamente via JavaScript -->
+    <link rel="manifest" id="pwa-manifest-link">
+
+    <!-- Inclui a biblioteca Tailwind CSS para estilização fácil e responsiva -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Cor de fundo escura */
+            color: #e2e8f0; /* Cor do texto principal */
+        }
+        /* Animação para o texto do cronômetro quando o tempo está acabando */
+        .timer-warning {
+            animation: pulse-red 1s infinite;
+            color: #ef4444; /* cor de aviso vermelho */
+        }
+        @keyframes pulse-red {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+        }
+        /* Efeito de carregamento nos botões */
+        .loading-button {
+            position: relative;
+            pointer-events: none;
+        }
+        .loading-button::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to {
+                transform: translate(-50%, -50%) rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div id="game-container" class="w-full max-w-lg bg-gray-800 rounded-2xl shadow-xl p-6 md:p-8 flex flex-col items-center text-center">
+        <!-- Logo do jogo atualizada para ser retangular e responsiva -->
+        <img id="logo" src="https://i.imgur.com/hVGX60b.png" alt="Logo Mediccurso" class="w-full max-w-sm h-auto mb-4 shadow-lg">
+        
+        <!-- Título do jogo, adaptado para o tema médico -->
+        <h1 class="text-3xl md:text-4xl font-bold mb-6 text-yellow-400">Show do Plantão</h1>
+        
+        <!-- Contêiner de perguntas e respostas -->
+        <div id="quiz-area" class="w-full flex flex-col items-center">
+            <!-- Área de exibição da pergunta -->
+            <div id="question-box" class="w-full bg-gray-700 text-lg md:text-xl font-medium rounded-lg p-4 mb-6 shadow-md">
+                <p id="question-text">Selecione uma dificuldade e clique em "Iniciar Jogo" para começar!</p>
+                <div id="question-category" class="text-sm text-gray-400 font-normal mt-2"></div>
+            </div>
+            
+            <!-- Contêiner dos botões de resposta -->
+            <div id="answers-container" class="w-full grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Botões de resposta, serão populados via JavaScript -->
+            </div>
+            
+            <!-- Mensagem de feedback (correto/incorreto) -->
+            <div id="feedback-message" class="mt-4 text-center font-semibold transition-all duration-300 transform scale-0"></div>
+            
+            <!-- Contêiner de informações de pontuação e estado do jogo -->
+            <div id="info-container" class="w-full flex items-center justify-between mt-6">
+                <span class="text-lg font-bold">Pontuação: <span id="score">0</span></span>
+                <span class="text-lg font-bold">Tempo: <span id="timer-value">--</span>s</span>
+            </div>
+
+            <!-- Seleção de dificuldade -->
+            <div id="difficulty-selection" class="w-full flex flex-col items-center mt-6">
+                <label for="difficulty" class="text-white font-bold mb-2">Selecione o Nível de Dificuldade:</label>
+                <select id="difficulty" class="w-full max-w-xs p-3 rounded-full bg-gray-700 text-white shadow-md">
+                    <option value="easy">Fácil (Calouro)</option>
+                    <option value="medium" selected>Médio (Estudante)</option>
+                    <option value="hard">Difícil (Residente)</option>
+                    <option value="very-hard">Muito Difícil (Preceptor)</option>
+                </select>
+            </div>
+            
+            <!-- Descrição da nova funcionalidade de IA -->
+            <p id="ai-description" class="mt-4 text-sm text-gray-400 max-w-xs md:max-w-lg">
+                Gerar uma pergunta de IA não contará para a pontuação e serve como um desafio extra!
+            </p>
+
+            <!-- Botões de controle do jogo (Iniciar/Reiniciar e IA) -->
+            <div class="flex flex-col md:flex-row space-y-4 md:space-y-0 md:space-x-4 mt-8 w-full md:w-auto">
+                <button id="start-button" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-full transition-colors duration-300 shadow-lg transform active:scale-95 w-full">
+                    Iniciar Jogo
+                </button>
+                <button id="ai-button" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-full transition-colors duration-300 shadow-lg transform active:scale-95 w-full">
+                    Gerar Pergunta com IA ✨
+                </button>
+            </div>
+
+        </div>
+    </div>
+    
+    <!-- Modal para mensagens personalizadas -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center p-4">
+        <div id="modal-box" class="bg-gray-800 rounded-lg p-6 shadow-xl text-center max-w-sm">
+            <p id="modal-message" class="text-lg font-semibold mb-4"></p>
+            <button id="modal-close-button" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md">OK</button>
+        </div>
+    </div>
+
+
+    <script>
+        // Array de categorias, cada uma contendo um tema e suas perguntas
+        const categories = [
+            {
+                theme: "Clínica Médica",
+                questions: [
+                    {
+                        question: "Um paciente de 65 anos, diabético e hipertenso, apresenta quadro de dor torácica opressiva. O eletrocardiograma (ECG) mostra supradesnivelamento do segmento ST em V1-V4. Qual o diagnóstico e a conduta inicial?",
+                        answers: [
+                            { text: "Infarto agudo do miocárdio com supra de ST. Conduta: angioplastia primária ou trombólise.", isCorrect: true },
+                            { text: "Angina instável. Conduta: Nitroglicerina e repouso.", isCorrect: false },
+                            { text: "Embolia pulmonar. Conduta: Oxigênio e anticoagulação.", isCorrect: false },
+                            { text: "Dissecção de aorta. Conduta: Controle rigoroso da pressão arterial e cirurgia de urgência.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Qual o tratamento de primeira linha para uma crise de asma grave em adultos, segundo as diretrizes atuais?",
+                        answers: [
+                            { text: "Corticosteroides inalatórios e Salmeterol.", isCorrect: false },
+                            { text: "Adrenalina subcutânea.", isCorrect: false },
+                            { text: "Broncodilatadores de curta ação (SABA), corticosteroide sistêmico e oxigênio.", isCorrect: true },
+                            { text: "Antagonistas de leucotrienos e teofilina.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Paciente com quadro de febre, calafrios, tosse produtiva e dispneia. Ausculta pulmonar revela estertores em base direita. O hemograma mostra leucocitose com desvio à esquerda. Qual a principal hipótese diagnóstica e qual antibiótico empírico seria o mais adequado para iniciar?",
+                        answers: [
+                            { text: "Tuberculose. Iniciar Isoniazida, Rifampicina, Pirazinamida e Etambutol.", isCorrect: false },
+                            { text: "Pneumonia adquirida na comunidade. Iniciar Amoxicilina-clavulanato ou macrolídeo.", isCorrect: true },
+                            { text: "DPOC. Iniciar broncodilatadores e corticoide inalatório.", isCorrect: false },
+                            { text: "Asma. Iniciar broncodilatador de curta ação e corticoide sistêmico.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Qual é a classificação de hipertensão arterial sistêmica de acordo com a AHA/ACC para um paciente com PA de 135/85 mmHg?",
+                        answers: [
+                            { text: "Pressão arterial normal", isCorrect: false },
+                            { text: "Pressão arterial elevada", isCorrect: true },
+                            { text: "Hipertensão Estágio 1", isCorrect: false },
+                            { text: "Hipertensão Estágio 2", isCorrect: false }
+                        ]
+                    }
+                ]
+            },
+            {
+                theme: "Medicina da Família e Comunidade",
+                questions: [
+                    {
+                        question: "De acordo com o protocolo brasileiro de rastreamento para câncer de colo do útero, qual a periodicidade recomendada para o exame citopatológico de rotina?",
+                        answers: [
+                            { text: "Anual, por toda a vida.", isCorrect: false },
+                            { text: "Bienal, após o início da vida sexual.", isCorrect: false },
+                            { text: "Anual. Após dois exames anuais normais, pode-se espaçar para a cada três anos.", isCorrect: true },
+                            { text: "A cada cinco anos, a partir dos 30 anos.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Qual a melhor abordagem para a prevenção primária de doenças cardiovasculares em um paciente assintomático, segundo os princípios da Medicina de Família?",
+                        answers: [
+                            { text: "Prescrever estatina para todos os pacientes a partir dos 40 anos.", isCorrect: false },
+                            { text: "Orientar sobre hábitos de vida saudáveis (dieta, exercícios) e rastrear fatores de risco de forma personalizada e contínua.", isCorrect: true },
+                            { text: "Solicitar Ecocardiograma e teste ergométrico anualmente.", isCorrect: false },
+                            { text: "Incentivar o uso de aspirina profilática para todos os idosos.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Em relação ao pré-natal de baixo risco na atenção primária, quais são os exames laboratoriais básicos recomendados no primeiro trimestre?",
+                        answers: [
+                            { text: "Glicemia de jejum, Hemograma, Tipagem sanguínea e Fator Rh, Sorologias para sífilis e HIV.", isCorrect: true },
+                            { text: "Dosagem de TSH, Prolactina e Cortisol.", isCorrect: false },
+                            { text: "Hemograma, Glicemia de jejum, Proteinúria de 24h.", isCorrect: false },
+                            { text: "Papanicolau e Ultrassonografia transvaginal.", isCorrect: false }
+                        ]
+                    }
+                ]
+            },
+            {
+                theme: "Pediatria",
+                questions: [
+                    {
+                        question: "Um lactente de 2 meses apresenta tosse, coriza e sibilância. O exame físico revela taquipneia e retrações intercostais. Qual é a principal hipótese diagnóstica e o agente etiológico mais comum?",
+                        answers: [
+                            { text: "Coqueluche; Bordetella pertussis.", isCorrect: false },
+                            { text: "Bronquiolite; Vírus Sincicial Respiratório (VSR).", isCorrect: true },
+                            { text: "Pneumonia bacteriana; Streptococcus pneumoniae.", isCorrect: false },
+                            { text: "Croup viral; Parainfluenza vírus.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Em um caso de cetoacidose diabética (CAD) em pediatria, qual a conduta inicial mais importante?",
+                        answers: [
+                            { text: "Administrar insulina intravenosa em bolus.", isCorrect: false },
+                            { text: "Iniciar hidratação vigorosa com soro glicosado.", isCorrect: false },
+                            { text: "Iniciar hidratação com soro fisiológico e reposição de potássio, se necessário.", isCorrect: true },
+                            { text: "Administrar bicarbonato de sódio.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Qual o marco de desenvolvimento esperado para uma criança de 6 meses?",
+                        answers: [
+                            { text: "Caminhar com apoio.", isCorrect: false },
+                            { text: "Falar frases curtas.", isCorrect: false },
+                            { text: "Sentar sem apoio.", isCorrect: true },
+                            { text: "Pegar pequenos objetos com pinça fina.", isCorrect: false }
+                        ]
+                    }
+                ]
+            },
+            {
+                theme: "Cirurgia Geral",
+                questions: [
+                    {
+                        question: "Em um paciente com quadro de apendicite aguda, qual o sinal semiológico mais comum?",
+                        answers: [
+                            { text: "Sinal de Murphy.", isCorrect: false },
+                            { text: "Sinal de Blumberg.", isCorrect: true },
+                            { text: "Sinal de Giordano.", isCorrect: false },
+                            { text: "Sinal de Psoas.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Qual a principal causa de hemorragia digestiva alta em adultos, fora de um quadro de varizes esofágicas?",
+                        answers: [
+                            { text: "Úlcera péptica.", isCorrect: true },
+                            { text: "Síndrome de Mallory-Weiss.", isCorrect: false },
+                            { text: "Esofagite de refluxo.", isCorrect: false },
+                            { text: "Câncer gástrico.", isCorrect: false }
+                        ]
+                    },
+                    {
+                        question: "Paciente chega ao pronto-socorro com trauma abdominal fechado e sinais de instabilidade hemodinâmica. Qual é a conduta diagnóstica inicial mais indicada?",
+                        answers: [
+                            { text: "Tomografia computadorizada de abdômen com contraste.", isCorrect: false },
+                            { text: "Laparotomia exploradora de urgência.", isCorrect: false },
+                            { text: "Ultrassonografia abdominal (FAST) à beira do leito.", isCorrect: true },
+                            { text: "Radiografia de abdômen.", isCorrect: false }
+                        ]
+                    }
+                ]
+            }
+        ];
+
+        // Mapeia os níveis de dificuldade para a duração do cronômetro
+        const difficultyLevels = {
+            'easy': { name: 'Fácil (Calouro)', timer: 20, description: "Perguntas de conhecimentos básicos e diagnósticos comuns." },
+            'medium': { name: 'Médio (Estudante)', timer: 15, description: "Perguntas que exigem conhecimento aprofundado e raciocínio clínico." },
+            'hard': { name: 'Difícil (Residente)', timer: 10, description: "Casos complexos e detalhes específicos de protocolos." },
+            'very-hard': { name: 'Muito Difícil (Preceptor)', timer: 5, description: "Perguntas de alta complexidade, para os mais experientes." }
+        };
+
+        // Elementos do DOM
+        const questionText = document.getElementById('question-text');
+        const questionCategory = document.getElementById('question-category');
+        const answersContainer = document.getElementById('answers-container');
+        const startButton = document.getElementById('start-button');
+        const aiButton = document.getElementById('ai-button');
+        const scoreDisplay = document.getElementById('score');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const timerValueDisplay = document.getElementById('timer-value');
+        const difficultySelect = document.getElementById('difficulty');
+        const difficultySelectionContainer = document.getElementById('difficulty-selection');
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalMessage = document.getElementById('modal-message');
+        const modalCloseButton = document.getElementById('modal-close-button');
+
+        // Variáveis de estado do jogo
+        let shuffledQuestions = [];
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let gameActive = false;
+        let timerInterval;
+        let timerDuration;
+        const totalQuestionsPerGame = 10;
+        let backgroundMusic; // Variável para a música de fundo
+        let correctSound; // Variável para o som de acerto
+        let incorrectSound; // Variável para o som de erro
+        let currentQuestion; // Armazena a pergunta atual, seja ela fixa ou da IA
+
+        // Configuração do Gemini API. A chave fica vazia pois será fornecida pelo ambiente.
+        const apiKey = ""; 
+
+        // Função para mostrar um modal de mensagem
+        function showModal(message) {
+            modalMessage.textContent = message;
+            modalOverlay.classList.remove('hidden');
+            modalOverlay.classList.add('flex');
+        }
+
+        // Função para esconder o modal
+        function hideModal() {
+            modalOverlay.classList.add('hidden');
+            modalOverlay.classList.remove('flex');
+        }
+
+        // Adiciona o evento de clique para fechar o modal
+        modalCloseButton.addEventListener('click', hideModal);
+
+
+        // Função para inicializar os objetos de áudio do Tone.js.
+        function initializeSounds() {
+            backgroundMusic = new Tone.Synth({
+                oscillator: { type: "square" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.3,
+                    release: 1
+                }
+            }).toDestination();
+            
+            correctSound = new Tone.Synth({
+                oscillator: { type: "triangle" },
+                envelope: {
+                    attack: 0.005,
+                    decay: 0.1,
+                    sustain: 0.05,
+                    release: 0.2
+                }
+            }).toDestination();
+            
+            incorrectSound = new Tone.PolySynth(Tone.Synth).toDestination();
+        }
+
+        function playBackgroundMusic() {
+            const musicPart = new Tone.Sequence((time, note) => {
+                backgroundMusic.triggerAttackRelease(note, "8n", time);
+            }, ["C2", "G2", "A2", "F2"]).start(0);
+            
+            musicPart.loop = true;
+            musicPart.loopEnd = "2m";
+            
+            Tone.Transport.start();
+        }
+
+        function stopBackgroundMusic() {
+            Tone.Transport.stop();
+        }
+        
+        function playCorrectSound() {
+            correctSound.triggerAttackRelease("G4", "8n");
+        }
+
+        function playIncorrectSound() {
+            incorrectSound.triggerAttackRelease(["C3", "F#3"], "8n");
+        }
+
+        // Inicia ou reinicia o jogo
+        async function startGame() {
+            await Tone.start();
+
+            if (!backgroundMusic) {
+                initializeSounds();
+            }
+            
+            playBackgroundMusic();
+
+            const selectedDifficulty = difficultySelect.value;
+            timerDuration = difficultyLevels[selectedDifficulty].timer;
+            
+            const allQuestions = categories.flatMap(category => 
+                category.questions.map(q => ({ ...q, theme: category.theme, type: 'pre-defined' }))
+            );
+
+            allQuestions.sort(() => Math.random() - 0.5);
+            shuffledQuestions = allQuestions.slice(0, totalQuestionsPerGame);
+
+            currentQuestionIndex = 0;
+            score = 0;
+            gameActive = true;
+            scoreDisplay.textContent = score;
+            startButton.textContent = "Próxima Pergunta";
+            startButton.classList.remove('bg-green-600', 'hover:bg-green-700', 'bg-red-600', 'hover:bg-red-700');
+            startButton.classList.add('bg-blue-600', 'hover:bg-blue-700', 'opacity-50', 'cursor-not-allowed');
+            startButton.disabled = true;
+            aiButton.disabled = true;
+            aiButton.classList.add('opacity-50', 'cursor-not-allowed');
+
+            feedbackMessage.textContent = '';
+            feedbackMessage.classList.remove('text-green-500', 'text-red-500', 'scale-100');
+            difficultySelectionContainer.classList.add('hidden'); // Esconde a seleção de dificuldade
+            
+            currentQuestion = shuffledQuestions[currentQuestionIndex];
+            showQuestion(currentQuestion);
+        }
+
+        // Exibe a pergunta (pré-definida ou gerada por IA)
+        function showQuestion(questionData) {
+            // Limpa os botões de resposta anteriores
+            answersContainer.innerHTML = '';
+            
+            questionText.textContent = questionData.question;
+            questionCategory.textContent = `Categoria: ${questionData.theme}`;
+
+            // --- FIX: A lógica aqui foi simplificada. As perguntas da IA já vêm com o formato correto,
+            // --- então não é necessário remapeá-las.
+            const answersToDisplay = questionData.answers;
+
+            // Embaralha as respostas para a pergunta atual
+            const shuffledAnswers = [...answersToDisplay].sort(() => Math.random() - 0.5);
+
+            shuffledAnswers.forEach(answer => {
+                const button = document.createElement('button');
+                button.textContent = answer.text;
+                button.classList.add('answer-button', 'w-full', 'py-3', 'px-4', 'bg-gray-700', 'hover:bg-gray-600', 'text-white', 'font-medium', 'rounded-full', 'transition-colors', 'duration-300', 'shadow-md', 'transform', 'active:scale-95');
+                
+                // Adiciona um evento de clique a cada botão
+                button.addEventListener('click', () => selectAnswer(answer.isCorrect, button));
+                
+                answersContainer.appendChild(button);
+            });
+
+            startTimer();
+        }
+
+        // Lógica do cronômetro
+        function startTimer() {
+            let timeLeft = timerDuration;
+            timerValueDisplay.textContent = timeLeft;
+            timerValueDisplay.classList.remove('timer-warning');
+
+            if (timerInterval) clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerValueDisplay.textContent = timeLeft;
+                
+                if (timeLeft <= 5) {
+                    timerValueDisplay.classList.add('timer-warning');
+                }
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        // Lógica para quando o tempo acaba
+        function handleTimeout() {
+            gameActive = false;
+            playIncorrectSound();
+            showFeedback('Tempo esgotado! Resposta incorreta.', 'text-red-500');
+
+            Array.from(answersContainer.children).forEach(button => {
+                const correspondingAnswer = currentQuestion.answers.find(a => a.text === button.textContent);
+                if (correspondingAnswer && correspondingAnswer.isCorrect) {
+                    button.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                    button.classList.add('bg-green-500');
+                }
+            });
+
+            startButton.disabled = false;
+            startButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            if (currentQuestionIndex < shuffledQuestions.length - 1) {
+                currentQuestionIndex++;
+                startButton.textContent = "Próxima Pergunta";
+            } else {
+                endGame();
+            }
+        }
+        
+        // Lógica para quando uma resposta é selecionada
+        function selectAnswer(isCorrect, selectedButton) {
+            if (!gameActive) return;
+
+            clearInterval(timerInterval);
+            timerValueDisplay.classList.remove('timer-warning');
+
+            Array.from(answersContainer.children).forEach(button => {
+                button.disabled = true;
+            });
+            
+            if (isCorrect) {
+                score++;
+                scoreDisplay.textContent = score;
+                selectedButton.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                selectedButton.classList.add('bg-green-500', 'animate-pulse');
+                
+                playCorrectSound();
+                showFeedback('Resposta correta!', 'text-green-500');
+            } else {
+                selectedButton.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                selectedButton.classList.add('bg-red-500');
+                
+                // Encontra e destaca a resposta correta
+                Array.from(answersContainer.children).forEach(button => {
+                    // Verifica se o botão corresponde à resposta correta
+                    const isCorrectButton = currentQuestion.answers.some(answer => 
+                        answer.text === button.textContent && answer.isCorrect
+                    );
+                    if (isCorrectButton) {
+                        button.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                        button.classList.add('bg-green-500');
+                    }
+                });
+
+                playIncorrectSound();
+                showFeedback('Resposta incorreta.', 'text-red-500');
+            }
+
+            startButton.disabled = false;
+            startButton.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            if (currentQuestionIndex < shuffledQuestions.length - 1) {
+                startButton.textContent = "Próxima Pergunta";
+                currentQuestionIndex++;
+            } else {
+                endGame();
+            }
+        }
+        
+        // Exibe a mensagem de feedback
+        function showFeedback(message, colorClass) {
+            feedbackMessage.textContent = message;
+            feedbackMessage.classList.add(colorClass, 'scale-100');
+            setTimeout(() => {
+                feedbackMessage.classList.remove('scale-100');
+            }, 1000);
+        }
+
+        // Finaliza o jogo
+        function endGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            timerValueDisplay.textContent = '--';
+            questionText.textContent = `Fim do jogo! Sua pontuação final é ${score} de ${totalQuestionsPerGame}.`;
+            questionCategory.textContent = '';
+            answersContainer.innerHTML = '';
+            difficultySelectionContainer.classList.remove('hidden'); // Exibe a seleção de dificuldade
+            startButton.textContent = "Jogar Novamente";
+            startButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            startButton.classList.add('bg-green-600', 'hover:bg-green-700');
+            startButton.disabled = false;
+            aiButton.disabled = false;
+            aiButton.classList.remove('opacity-50', 'cursor-not-allowed', 'loading-button');
+            stopBackgroundMusic(); // Para a música ao fim do jogo
+        }
+
+        // Adiciona um evento de clique para o botão "Iniciar Jogo"
+        startButton.addEventListener('click', () => {
+            if (!gameActive) {
+                startGame();
+            } else {
+                currentQuestion = shuffledQuestions[currentQuestionIndex];
+                showQuestion(currentQuestion);
+            }
+        });
+
+        // =========================================================
+        // Funcionalidade de Geração de Pergunta com Gemini API
+        // =========================================================
+
+        // Função para gerar uma pergunta de IA
+        async function generateAIQuestion() {
+            if (gameActive) {
+                showModal("Você não pode gerar uma pergunta de IA enquanto um jogo estiver em andamento. Finalize ou inicie um novo jogo.");
+                return;
+            }
+
+            aiButton.disabled = true;
+            aiButton.classList.add('loading-button');
+            aiButton.textContent = 'Gerando...';
+
+            const selectedDifficulty = difficultySelect.value;
+            const difficultyDescription = difficultyLevels[selectedDifficulty].description;
+            const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+            const selectedCategory = randomCategory.theme;
+
+            const systemPrompt = `Você é um especialista em medicina e trabalha como professor em uma universidade renomada. Sua tarefa é gerar uma pergunta de múltipla escolha para um quiz sobre medicina, no idioma português do Brasil. O tema deve ser "${selectedCategory}" e o nível de dificuldade deve ser: "${difficultyDescription}". A pergunta deve ser informativa e clara. As quatro opções de resposta devem ser plausíveis, mas apenas uma pode ser a correta. Evite jargões excessivos e explique o raciocínio da resposta correta, se for apropriado.`;
+
+            const userQuery = "Gere uma nova pergunta de quiz de medicina com 4 opções de resposta, com uma única resposta correta. O resultado deve ser um objeto JSON no formato { \"question\": \"string\", \"answers\": [\"string\", \"string\", \"string\", \"string\"], \"correctAnswerIndex\": number }";
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            question: { type: "STRING" },
+                            answers: { type: "ARRAY", items: { type: "STRING" }, minItems: 4, maxItems: 4 },
+                            correctAnswerIndex: { type: "NUMBER" }
+                        },
+                        propertyOrdering: ["question", "answers", "correctAnswerIndex"]
+                    }
+                }
+            };
+            
+            try {
+                let response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
+                }
+
+                let result = await response.json();
+                
+                const json = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!json) {
+                    throw new Error('Formato de resposta da API inválido.');
+                }
+                const parsedData = JSON.parse(json);
+
+                // Armazena a pergunta da IA em uma variável global para uso posterior
+                currentQuestion = {
+                    question: parsedData.question,
+                    answers: parsedData.answers.map((text, index) => ({
+                        text: text,
+                        isCorrect: index === parsedData.correctAnswerIndex
+                    })),
+                    theme: selectedCategory,
+                    type: 'ai'
+                };
+                
+                showQuestion(currentQuestion);
+                
+                // Exibe a mensagem de feedback de IA
+                showFeedback('Pergunta gerada por IA!', 'text-purple-400');
+
+            } catch (error) {
+                console.error("Erro ao gerar pergunta com IA:", error);
+                showModal("Não foi possível gerar a pergunta. Por favor, tente novamente.");
+            } finally {
+                aiButton.disabled = false;
+                aiButton.classList.remove('loading-button');
+                aiButton.textContent = 'Gerar Pergunta com IA ✨';
+                startButton.disabled = false;
+                startButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // Adiciona um evento de clique para o botão de IA
+        aiButton.addEventListener('click', generateAIQuestion);
+
+        // Garante que a seleção de dificuldade esteja visível no início
+        window.onload = () => {
+            difficultySelectionContainer.classList.remove('hidden');
+            startButton.textContent = "Iniciar Jogo";
+            questionText.textContent = 'Selecione uma dificuldade e clique em "Iniciar Jogo" ou gere uma pergunta com IA!';
+        };
+        
+    </script>
+    <!-- Inclui a biblioteca Tone.js para geração de áudio -->
+    <script src="https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js"></script>
+    
+    <!-- ========================================================= -->
+    <!-- Scripts para transformar a aplicação em um PWA -->
+    <!-- ========================================================= -->
+    <script>
+        // Conteúdo do arquivo de manifesto para PWA
+        const manifestContent = {
+            "name": "Show do Plantão - Quiz",
+            "short_name": "Quiz Méd",
+            "description": "Um quiz de medicina para estudantes e profissionais da área.",
+            "start_url": "./",
+            "display": "standalone",
+            "background_color": "#1a202c",
+            "theme_color": "#1a202c",
+            "icons": [
+                {
+                    "src": "https://i.imgur.com/8QG3y4a.png",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                },
+                {
+                    "src": "https://i.imgur.com/8QG3y4a.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        };
+
+        // Cria e injeta o manifesto dinamicamente
+        const manifestBlob = new Blob([JSON.stringify(manifestContent)], { type: 'application/json' });
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        document.getElementById('pwa-manifest-link').setAttribute('href', manifestUrl);
+
+        // Conteúdo do Service Worker em uma string
+        const serviceWorkerContent = `
+            const CACHE_NAME = 'quiz-game-cache-v1';
+            const urlsToCache = [
+                './',
+                'https://cdn.tailwindcss.com',
+                'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap',
+                'https://fonts.gstatic.com',
+                'https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js',
+                'https://i.imgur.com/hVGX60b.png', // Logo
+                'https://i.imgur.com/8QG3y4a.png' // Ícone PWA
+            ];
+
+            self.addEventListener('install', (event) => {
+                event.waitUntil(
+                    caches.open(CACHE_NAME)
+                        .then((cache) => {
+                            console.log('Cache aberto');
+                            return cache.addAll(urlsToCache);
+                        })
+                );
+            });
+
+            self.addEventListener('fetch', (event) => {
+                event.respondWith(
+                    caches.match(event.request)
+                        .then((response) => {
+                            if (response) {
+                                return response;
+                            }
+                            return fetch(event.request);
+                        })
+                );
+            });
+        `;
+
+        // Cria e registra o Service Worker dinamicamente
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const workerBlob = new Blob([serviceWorkerContent], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(workerBlob);
+                
+                navigator.serviceWorker.register(workerUrl).then(registration => {
+                    console.log('Service Worker registrado com sucesso:', registration.scope);
+                }).catch(err => {
+                    console.log('Falha ao registrar Service Worker:', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
