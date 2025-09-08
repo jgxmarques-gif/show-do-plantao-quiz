@@ -6,9 +6,9 @@
     <title>Show do Plantão</title>
     <!-- Adicionado para PWA: Cor do tema da barra de status no Android -->
     <meta name="theme-color" content="#1a202c">
-    <!-- Links para os ícones PWA, substituídos dinamicamente pelo script abaixo -->
-    <link rel="apple-touch-icon" href="https://i.imgur.com/8QG3y4a.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="https://i.imgur.com/8QG3y4a.png">
+    <!-- Links para os ícones PWA -->
+    <link rel="apple-touch-icon" href="https://https://imgur.com/a/nvtSPJH">
+    <link rel="icon" type="image/png" sizes="192x192" href="https://https://imgur.com/a/nvtSPJH">
 
     <!-- O link do manifesto será injetado dinamicamente via JavaScript -->
     <link rel="manifest" id="pwa-manifest-link">
@@ -23,19 +23,6 @@
             font-family: 'Inter', sans-serif;
             background-color: #1a202c; /* Cor de fundo escura */
             color: #e2e8f0; /* Cor do texto principal */
-        }
-        /* Animação para o texto do cronômetro quando o tempo está acabando */
-        .timer-warning {
-            animation: pulse-red 1s infinite;
-            color: #ef4444; /* cor de aviso vermelho */
-        }
-        @keyframes pulse-red {
-            0%, 100% {
-                transform: scale(1);
-            }
-            50% {
-                transform: scale(1.1);
-            }
         }
         /* Efeito de carregamento nos botões */
         .loading-button {
@@ -89,17 +76,17 @@
             <!-- Contêiner de informações de pontuação e estado do jogo -->
             <div id="info-container" class="w-full flex items-center justify-between mt-6">
                 <span class="text-lg font-bold">Pontuação: <span id="score">0</span></span>
-                <span class="text-lg font-bold">Tempo: <span id="timer-value">--</span>s</span>
+                <span class="text-lg font-bold">Tempo Total: <span id="total-time-value">--</span>s</span>
             </div>
 
             <!-- Seleção de dificuldade -->
             <div id="difficulty-selection" class="w-full flex flex-col items-center mt-6">
                 <label for="difficulty" class="text-white font-bold mb-2">Selecione o Nível de Dificuldade:</label>
                 <select id="difficulty" class="w-full max-w-xs p-3 rounded-full bg-gray-700 text-white shadow-md">
-                    <option value="easy">Fácil (Calouro)</option>
-                    <option value="medium" selected>Médio (Estudante)</option>
-                    <option value="hard">Difícil (Residente)</option>
-                    <option value="very-hard">Muito Difícil (Preceptor)</option>
+                    <option value="easy">Fácil (Calouro) - 5 questões</option>
+                    <option value="medium" selected>Médio (Estudante) - 10 questões</option>
+                    <option value="hard">Difícil (Residente) - 20 questões</option>
+                    <option value="very-hard">Muito Difícil (Preceptor) - 30 questões</option>
                 </select>
             </div>
             
@@ -274,10 +261,10 @@
 
         // Mapeia os níveis de dificuldade para a duração do cronômetro
         const difficultyLevels = {
-            'easy': { name: 'Fácil (Calouro)', timer: 20, description: "Perguntas de conhecimentos básicos e diagnósticos comuns." },
-            'medium': { name: 'Médio (Estudante)', timer: 15, description: "Perguntas que exigem conhecimento aprofundado e raciocínio clínico." },
-            'hard': { name: 'Difícil (Residente)', timer: 10, description: "Casos complexos e detalhes específicos de protocolos." },
-            'very-hard': { name: 'Muito Difícil (Preceptor)', timer: 5, description: "Perguntas de alta complexidade, para os mais experientes." }
+            'easy': { name: 'Fácil (Calouro)', totalQuestions: 5, description: "Perguntas de conhecimentos básicos e diagnósticos comuns." },
+            'medium': { name: 'Médio (Estudante)', totalQuestions: 10, description: "Perguntas que exigem conhecimento aprofundado e raciocínio clínico." },
+            'hard': { name: 'Difícil (Residente)', totalQuestions: 20, description: "Casos complexos e detalhes específicos de protocolos." },
+            'very-hard': { name: 'Muito Difícil (Preceptor)', totalQuestions: 30, description: "Perguntas de alta complexidade, para os mais experientes." }
         };
 
         // Elementos do DOM
@@ -288,7 +275,7 @@
         const aiButton = document.getElementById('ai-button');
         const scoreDisplay = document.getElementById('score');
         const feedbackMessage = document.getElementById('feedback-message');
-        const timerValueDisplay = document.getElementById('timer-value');
+        const totalTimeValueDisplay = document.getElementById('total-time-value');
         const difficultySelect = document.getElementById('difficulty');
         const difficultySelectionContainer = document.getElementById('difficulty-selection');
         const modalOverlay = document.getElementById('modal-overlay');
@@ -300,9 +287,9 @@
         let currentQuestionIndex = 0;
         let score = 0;
         let gameActive = false;
-        let timerInterval;
-        let timerDuration;
-        const totalQuestionsPerGame = 10;
+        let gameStartTime = 0;
+        let gameEndTime = 0;
+        let totalQuestionsPerGame = 0;
         let backgroundMusic; // Variável para a música de fundo
         let correctSound; // Variável para o som de acerto
         let incorrectSound; // Variável para o som de erro
@@ -387,7 +374,7 @@
             playBackgroundMusic();
 
             const selectedDifficulty = difficultySelect.value;
-            timerDuration = difficultyLevels[selectedDifficulty].timer;
+            totalQuestionsPerGame = difficultyLevels[selectedDifficulty].totalQuestions;
             
             const allQuestions = categories.flatMap(category => 
                 category.questions.map(q => ({ ...q, theme: category.theme, type: 'pre-defined' }))
@@ -399,7 +386,9 @@
             currentQuestionIndex = 0;
             score = 0;
             gameActive = true;
+            gameStartTime = Date.now();
             scoreDisplay.textContent = score;
+            totalTimeValueDisplay.textContent = '0';
             startButton.textContent = "Próxima Pergunta";
             startButton.classList.remove('bg-green-600', 'hover:bg-green-700', 'bg-red-600', 'hover:bg-red-700');
             startButton.classList.add('bg-blue-600', 'hover:bg-blue-700', 'opacity-50', 'cursor-not-allowed');
@@ -423,7 +412,7 @@
             questionText.textContent = questionData.question;
             questionCategory.textContent = `Categoria: ${questionData.theme}`;
 
-            // --- FIX: A lógica aqui foi simplificada. As perguntas da IA já vêm com o formato correto,
+            // --- A lógica foi simplificada. As perguntas da IA já vêm com o formato correto,
             // --- então não é necessário remapeá-las.
             const answersToDisplay = questionData.answers;
 
@@ -440,64 +429,11 @@
                 
                 answersContainer.appendChild(button);
             });
-
-            startTimer();
         }
 
-        // Lógica do cronômetro
-        function startTimer() {
-            let timeLeft = timerDuration;
-            timerValueDisplay.textContent = timeLeft;
-            timerValueDisplay.classList.remove('timer-warning');
-
-            if (timerInterval) clearInterval(timerInterval);
-
-            timerInterval = setInterval(() => {
-                timeLeft--;
-                timerValueDisplay.textContent = timeLeft;
-                
-                if (timeLeft <= 5) {
-                    timerValueDisplay.classList.add('timer-warning');
-                }
-
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    handleTimeout();
-                }
-            }, 1000);
-        }
-
-        // Lógica para quando o tempo acaba
-        function handleTimeout() {
-            gameActive = false;
-            playIncorrectSound();
-            showFeedback('Tempo esgotado! Resposta incorreta.', 'text-red-500');
-
-            Array.from(answersContainer.children).forEach(button => {
-                const correspondingAnswer = currentQuestion.answers.find(a => a.text === button.textContent);
-                if (correspondingAnswer && correspondingAnswer.isCorrect) {
-                    button.classList.remove('bg-gray-700', 'hover:bg-gray-600');
-                    button.classList.add('bg-green-500');
-                }
-            });
-
-            startButton.disabled = false;
-            startButton.classList.remove('opacity-50', 'cursor-not-allowed');
-
-            if (currentQuestionIndex < shuffledQuestions.length - 1) {
-                currentQuestionIndex++;
-                startButton.textContent = "Próxima Pergunta";
-            } else {
-                endGame();
-            }
-        }
-        
         // Lógica para quando uma resposta é selecionada
         function selectAnswer(isCorrect, selectedButton) {
             if (!gameActive) return;
-
-            clearInterval(timerInterval);
-            timerValueDisplay.classList.remove('timer-warning');
 
             Array.from(answersContainer.children).forEach(button => {
                 button.disabled = true;
@@ -534,7 +470,7 @@
             startButton.disabled = false;
             startButton.classList.remove('opacity-50', 'cursor-not-allowed');
 
-            if (currentQuestionIndex < shuffledQuestions.length - 1) {
+            if (currentQuestionIndex < totalQuestionsPerGame - 1) {
                 startButton.textContent = "Próxima Pergunta";
                 currentQuestionIndex++;
             } else {
@@ -554,10 +490,12 @@
         // Finaliza o jogo
         function endGame() {
             gameActive = false;
-            clearInterval(timerInterval);
-            timerValueDisplay.textContent = '--';
-            questionText.textContent = `Fim do jogo! Sua pontuação final é ${score} de ${totalQuestionsPerGame}.`;
-            questionCategory.textContent = '';
+            gameEndTime = Date.now();
+            const totalTimeInSeconds = ((gameEndTime - gameStartTime) / 1000).toFixed(1);
+            totalTimeValueDisplay.textContent = totalTimeInSeconds;
+
+            questionText.textContent = `Fim do jogo! Você acertou ${score} de ${totalQuestionsPerGame} questões em ${totalTimeInSeconds} segundos.`;
+            questionCategory.textContent = 'Parabéns!';
             answersContainer.innerHTML = '';
             difficultySelectionContainer.classList.remove('hidden'); // Exibe a seleção de dificuldade
             startButton.textContent = "Jogar Novamente";
@@ -690,7 +628,7 @@
         // Conteúdo do arquivo de manifesto para PWA
         const manifestContent = {
             "name": "Show do Plantão - Quiz",
-            "short_name": "Quiz Méd",
+            "short_name": "Quiz Méd", // Revertido para melhor exibição
             "description": "Um quiz de medicina para estudantes e profissionais da área.",
             "start_url": "./",
             "display": "standalone",
@@ -698,22 +636,17 @@
             "theme_color": "#1a202c",
             "icons": [
                 {
-                    "src": "https://i.imgur.com/8QG3y4a.png", // Ícone de 192x192 pixels
+                    "src": "https://https://imgur.com/a/nvtSPJH", // URL corrigida
                     "sizes": "192x192",
                     "type": "image/png"
                 },
                 {
-                    "src": "https://i.imgur.com/8QG3y4a.png", // Ícone de 512x512 pixels
+                    "src": "https://imgur.com/a/IVoIYL1", // URL corrigida
                     "sizes": "512x512",
                     "type": "image/png"
                 }
             ]
         };
-
-        // Cria e injeta o manifesto dinamicamente
-        const manifestBlob = new Blob([JSON.stringify(manifestContent)], { type: 'application/json' });
-        const manifestUrl = URL.createObjectURL(manifestBlob);
-        document.getElementById('pwa-manifest-link').setAttribute('href', manifestUrl);
 
         // Conteúdo do Service Worker em uma string
         const serviceWorkerContent = `
@@ -724,8 +657,8 @@
                 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap',
                 'https://fonts.gstatic.com',
                 'https://cdn.jsdelivr.net/npm/tone@14.7.58/build/Tone.min.js',
-                'https://i.imgur.com/hVGX60b.png', // Logo
-                'https://i.imgur.com/hVGX60b.png' // Ícone PWA
+                'https://https://imgur.com/a/IVoIYL1', // Logo
+                'https://https://imgur.com/a/nvtSPJH' // Ícone PWA
             ];
 
             self.addEventListener('install', (event) => {
@@ -751,9 +684,14 @@
             });
         `;
 
-        // Cria e registra o Service Worker dinamicamente
+        // Cria e registra o Service Worker e o Manifesto dinamicamente
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
+                // Acessa o link do manifesto depois que o DOM está pronto para evitar erros
+                const manifestBlob = new Blob([JSON.stringify(manifestContent)], { type: 'application/json' });
+                const manifestUrl = URL.createObjectURL(manifestBlob);
+                document.getElementById('pwa-manifest-link').setAttribute('href', manifestUrl);
+
                 const workerBlob = new Blob([serviceWorkerContent], { type: 'application/javascript' });
                 const workerUrl = URL.createObjectURL(workerBlob);
                 
